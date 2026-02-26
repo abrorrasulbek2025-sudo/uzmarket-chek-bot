@@ -14,18 +14,21 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 
-# =====================
+# ======================
 # CONFIG
-# =====================
+# ======================
 
 ADMIN_ID = 6056893338
 TOKEN = os.getenv("BOT_TOKEN")
 
+if not TOKEN:
+    raise ValueError("BOT_TOKEN topilmadi! Railway Variables ga qo‘shing.")
+
 PRODUCT, QTY, PRICE = range(3)
 
-# =====================
+# ======================
 # START
-# =====================
+# ======================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -35,38 +38,38 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Mahsulot nomini kiriting:")
     return PRODUCT
 
-# =====================
-# STEP 1
-# =====================
+# ======================
+# PRODUCT
+# ======================
 
 async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["product"] = update.message.text
     await update.message.reply_text("Miqdorini kiriting:")
     return QTY
 
-# =====================
-# STEP 2
-# =====================
+# ======================
+# QTY
+# ======================
 
 async def qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["qty"] = update.message.text
     await update.message.reply_text("Narxini kiriting:")
     return PRICE
 
-# =====================
-# STEP 3 + PDF
-# =====================
+# ======================
+# PRICE + PDF
+# ======================
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["price"] = update.message.text
 
-    file_name = "check.pdf"
+    file_name = "chek.pdf"
     doc = SimpleDocTemplate(file_name)
     elements = []
 
     styles = getSampleStyleSheet()
 
-    elements.append(Paragraph("UZMARKET CHEK", styles["Title"]))
+    elements.append(Paragraph("UZMARKETOPTOM CHEK", styles["Title"]))
     elements.append(Spacer(1, 0.3 * inch))
 
     data = [
@@ -83,23 +86,22 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
 
     elements.append(table)
-
     doc.build(elements)
 
-    await update.message.reply_document(document=open(file_name, "rb"))
+    await update.message.reply_document(open(file_name, "rb"))
     return ConversationHandler.END
 
-# =====================
+# ======================
 # CANCEL
-# =====================
+# ======================
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Bekor qilindi.")
     return ConversationHandler.END
 
-# =====================
+# ======================
 # MAIN
-# =====================
+# ======================
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
