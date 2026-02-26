@@ -1,3 +1,4 @@
+ADMIN_ID = 6056893338
 import os
 import datetime
 from telegram import Update, ReplyKeyboardMarkup
@@ -15,8 +16,6 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 
 TOKEN = os.getenv("BOT_TOKEN")
-
-ADMIN_ID = 6056893338
 
 PRODUCT, QTY, PRICE, ADD_MORE = range(4)
 
