@@ -10,9 +10,25 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    Image
+)
 from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
+
+# ======================
+# CONFIG
+# ======================
 
 ADMIN_ID = 6056893338
 TOKEN = os.getenv("BOT_TOKEN")
@@ -23,6 +39,10 @@ if not TOKEN:
 PRODUCT, QTY, PRICE, ADD_MORE = range(4)
 
 BRAND_BLUE = colors.HexColor("#1f4e8c")
+
+# ======================
+# TELEGRAM HANDLERS
+# ======================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -63,7 +83,6 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     context.user_data["items"].append(item)
-
     await update.message.reply_text("Yana mahsulot qo‘shasizmi? (ha/yo‘q)")
     return ADD_MORE
 
@@ -74,110 +93,111 @@ async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         return await generate_pdf(update, context)
 
+# ======================
+# PROFESSIONAL PDF
+# ======================
+
 async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     file_name = "chek.pdf"
-    c = canvas.Canvas(file_name, pagesize=A4)
-    width, height = A4
+    doc = SimpleDocTemplate(file_name, pagesize=A4)
+    elements = []
 
-    y = height - 100
-
-    # LOGO
+    # ===== LOGO =====
     if os.path.exists("logo.png"):
-        c.drawImage("logo.png", width/2 - 110, y, width=220, height=90, mask='auto')
+        elements.append(Image("logo.png", width=3*inch, height=1.2*inch))
+        elements.append(Spacer(1, 0.2*inch))
 
-    y -= 20
-
-    # TOP LINE
-    c.setStrokeColor(BRAND_BLUE)
-    c.setLineWidth(1.5)
-    c.line(60, y, width - 60, y)
-
-    y -= 40
-
+    # ===== HEADER INFO =====
     chek_no = random.randint(1000, 9999)
     today = datetime.datetime.now().strftime("%d.%m.%Y")
 
-    c.setFont("Helvetica", 11)
-    c.setFillColor(BRAND_BLUE)
-
-    c.drawString(60, y + 15, "Sotuvchi: UzMarketOptom")
-    c.drawString(60, y, "Manzil: Samarqand sh.")
-    c.drawString(60, y - 15, "Tel: +998 XX XXX XX XX")
-
-    c.drawRightString(width - 60, y + 15, f"Chek № {chek_no}")
-    c.drawRightString(width - 60, y, f"Sana: {today}")
-
-    y -= 60
-
-    # TABLE STRUCTURE
-    table_left = 60
-    table_right = width - 60
-    row_height = 28
-
-    col_positions = [
-        table_left,
-        table_left + 40,
-        table_left + 350,
-        table_left + 430,
-        table_right
+    header_data = [
+        ["Sotuvchi: UzMarketOptom", f"Chek № {chek_no}"],
+        ["Manzil: Samarqand sh.", f"Sana: {today}"],
+        ["Tel: +998 XX XXX XX XX", ""],
     ]
 
-    # HEADER BORDER
-    c.rect(table_left, y - row_height, table_right - table_left, row_height, stroke=1, fill=0)
+    header_table = Table(header_data, colWidths=[3.5*inch, 2.5*inch])
+    header_table.setStyle(TableStyle([
+        ("TEXTCOLOR", (0,0), (-1,-1), BRAND_BLUE),
+        ("FONTNAME", (0,0), (-1,-1), "Helvetica"),
+        ("FONTSIZE", (0,0), (-1,-1), 11),
+        ("ALIGN", (1,0), (-1,-1), "RIGHT"),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+    ]))
 
-    # HEADER TEXT
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(col_positions[0] + 10, y - 20, "№")
-    c.drawString(col_positions[1] + 10, y - 20, "Mahsulot")
-    c.drawRightString(col_positions[2] - 10, y - 20, "Miqdor")
-    c.drawRightString(col_positions[3] - 10, y - 20, "Narx")
-    c.drawRightString(col_positions[4] - 10, y - 20, "Summa")
+    elements.append(header_table)
+    elements.append(Spacer(1, 0.3*inch))
 
-    # HEADER VERTICAL LINES
-    for x in col_positions[1:-1]:
-        c.line(x, y - row_height, x, y)
-
-    y -= row_height
+    # ===== ITEMS TABLE =====
+    data = [["№", "Mahsulot", "Miqdor", "Narx", "Summa"]]
 
     total_sum = 0
-    c.setFont("Helvetica", 11)
 
     for i, item in enumerate(context.user_data["items"], start=1):
-        c.rect(table_left, y - row_height, table_right - table_left, row_height, stroke=1, fill=0)
-
-        for x in col_positions[1:-1]:
-            c.line(x, y - row_height, x, y)
-
-        c.drawString(col_positions[0] + 10, y - 20, str(i))
-        c.drawString(col_positions[1] + 10, y - 20, item["product"])
-        c.drawRightString(col_positions[2] - 10, y - 20, str(item["qty"]))
-        c.drawRightString(col_positions[3] - 10, y - 20, f"{item['price']:,}")
-        c.drawRightString(col_positions[4] - 10, y - 20, f"{item['total']:,}")
-
+        data.append([
+            i,
+            item["product"],
+            item["qty"],
+            f"{item['price']:,}",
+            f"{item['total']:,}"
+        ])
         total_sum += item["total"]
-        y -= row_height
 
-    # TOTAL
-    y -= 40
-    c.setFont("Helvetica-Bold", 18)
-    c.drawRightString(table_right, y, f"JAMI: {total_sum:,} so'm")
+    table = Table(data, colWidths=[0.7*inch, 2.8*inch, 1*inch, 1.2*inch, 1.2*inch])
 
-    c.line(table_right - 230, y - 5, table_right, y - 5)
+    table.setStyle(TableStyle([
+        ("GRID", (0,0), (-1,-1), 1, BRAND_BLUE),
+        ("BACKGROUND", (0,0), (-1,0), BRAND_BLUE),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+        ("ALIGN", (2,1), (-1,-1), "RIGHT"),
+        ("ALIGN", (0,0), (0,-1), "CENTER"),
+        ("FONTNAME", (0,0), (-1,-1), "Helvetica"),
+        ("FONTSIZE", (0,0), (-1,-1), 10),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+    ]))
 
-    # STAMP
-    if os.path.exists("stamp.png"):
-        c.drawImage("stamp.png", 60, 90, width=180, height=180, mask='auto')
+    elements.append(table)
+    elements.append(Spacer(1, 0.4*inch))
 
-    # SIGNATURE
-    if os.path.exists("signature.png"):
-        c.drawImage("signature.png", width - 250, 120, width=180, height=70, mask='auto')
+    # ===== TOTAL =====
+    total_table = Table(
+        [["JAMI:", f"{total_sum:,} so'm"]],
+        colWidths=[4.7*inch, 1.2*inch]
+    )
 
-    c.save()
+    total_table.setStyle(TableStyle([
+        ("TEXTCOLOR", (0,0), (-1,-1), BRAND_BLUE),
+        ("FONTNAME", (0,0), (-1,-1), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,-1), 14),
+        ("ALIGN", (1,0), (1,0), "RIGHT"),
+    ]))
+
+    elements.append(total_table)
+    elements.append(Spacer(1, 0.8*inch))
+
+    # ===== STAMP & SIGNATURE =====
+    footer_data = []
+
+    stamp = Image("stamp.png", width=2*inch, height=2*inch) if os.path.exists("stamp.png") else ""
+    sign = Image("signature.png", width=2*inch, height=0.8*inch) if os.path.exists("signature.png") else ""
+
+    footer_data.append([stamp, sign])
+
+    footer_table = Table(footer_data, colWidths=[3*inch, 3*inch])
+    elements.append(footer_table)
+
+    doc.build(elements)
 
     with open(file_name, "rb") as f:
         await update.message.reply_document(f)
 
     return ConversationHandler.END
+
+# ======================
+# MAIN
+# ======================
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Bekor qilindi.")
