@@ -10,18 +10,9 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle,
-    Image,
-)
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
+from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import inch
+from reportlab.lib import colors
 
 # ======================
 # CONFIG
@@ -111,88 +102,92 @@ async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_name = "chek.pdf"
-    doc = SimpleDocTemplate(file_name, pagesize=A4)
-    elements = []
-    styles = getSampleStyleSheet()
+    c = canvas.Canvas(file_name, pagesize=A4)
 
+    width, height = A4
     blue = colors.HexColor("#1f4e8c")
 
-    # Logo
+    y = height - 60
+
+    # LOGO
     if os.path.exists("logo.png"):
-        elements.append(Image("logo.png", width=2*inch, height=1*inch))
-        elements.append(Spacer(1, 10))
+        c.drawImage("logo.png", width/2 - 100, y - 60, width=200, height=60, mask='auto')
+    y -= 80
 
     # Title
-    title = Paragraph("<b>UZMARKET OPTOM CHEK</b>", styles["Title"])
-    elements.append(title)
-    elements.append(Spacer(1, 20))
+    c.setFont("Helvetica-Bold", 22)
+    c.setFillColor(blue)
+    c.drawCentredString(width/2, y, "UZMARKET OPTOM CHEK")
+    y -= 20
+
+    c.setStrokeColor(blue)
+    c.line(60, y, width - 60, y)
+    y -= 30
 
     # Chek info
+    c.setFont("Helvetica", 11)
+    c.setFillColor(blue)
+
     chek_no = random.randint(1000, 9999)
     today = datetime.datetime.now().strftime("%d.%m.%Y")
 
-    info_data = [
-        ["Sotuvchi:", "UzMarketOptom"],
-        ["Manzil:", "Samarqand sh."],
-        ["Tel:", "+998 XX XXX XX XX"],
-        ["Chek №:", str(chek_no)],
-        ["Sana:", today],
-    ]
+    c.drawString(60, y, "Sotuvchi: UzMarketOptom")
+    c.drawRightString(width - 60, y, f"Chek № {chek_no}")
+    y -= 18
 
-    info_table = Table(info_data, colWidths=[120, 350])
-    info_table.setStyle(TableStyle([
-        ("TEXTCOLOR", (0,0), (-1,-1), blue),
-        ("FONTSIZE", (0,0), (-1,-1), 11),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
-    ]))
+    c.drawString(60, y, "Manzil: Samarqand sh.")
+    c.drawRightString(width - 60, y, f"Sana: {today}")
+    y -= 18
 
-    elements.append(info_table)
-    elements.append(Spacer(1, 20))
+    c.drawString(60, y, "Tel: +998 XX XXX XX XX")
+    y -= 25
 
-    # Items table
-    data = [["№", "Mahsulot", "Miqdor", "Narx", "Summa"]]
+    c.line(60, y, width - 60, y)
+    y -= 25
+
+    # Table Header
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(60, y, "№")
+    c.drawString(100, y, "Mahsulot")
+    c.drawString(350, y, "Miqdor")
+    c.drawString(420, y, "Narx")
+    c.drawString(480, y, "Summa")
+    y -= 15
+
+    c.line(60, y, width - 60, y)
+    y -= 20
+
+    # Items
+    c.setFont("Helvetica", 11)
     total_sum = 0
 
     for i, item in enumerate(context.user_data["items"], start=1):
-        data.append([
-            str(i),
-            item["product"],
-            str(item["qty"]),
-            f"{item['price']:,}",
-            f"{item['total']:,}"
-        ])
+        c.drawString(60, y, str(i))
+        c.drawString(100, y, item["product"])
+        c.drawRightString(390, y, str(item["qty"]))
+        c.drawRightString(460, y, f"{item['price']:,}")
+        c.drawRightString(width - 60, y, f"{item['total']:,}")
         total_sum += item["total"]
+        y -= 18
 
-    items_table = Table(data, colWidths=[40, 200, 60, 80, 90])
-    items_table.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), blue),
-        ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-        ("GRID", (0,0), (-1,-1), 1, blue),
-        ("FONTSIZE", (0,0), (-1,-1), 10),
-        ("ALIGN", (2,1), (-1,-1), "CENTER"),
-    ]))
+    y -= 10
+    c.line(300, y, width - 60, y)
+    y -= 25
 
-    elements.append(items_table)
-    elements.append(Spacer(1, 20))
+    # JAMI
+    c.setFont("Helvetica-Bold", 16)
+    c.setFillColor(blue)
+    c.drawRightString(width - 60, y, f"JAMI: {total_sum:,} so'm")
 
-    # Jami
-    jami_paragraph = Paragraph(
-        f"<b>JAMI: {total_sum:,} so'm</b>",
-        styles["Heading2"]
-    )
-    elements.append(jami_paragraph)
-    elements.append(Spacer(1, 40))
-
-    # Stamp + signature
+    # Stamp bottom left
     if os.path.exists("stamp.png"):
-        elements.append(Image("stamp.png", width=2*inch, height=2*inch))
+        c.drawImage("stamp.png", 60, 80, width=180, height=180, mask='auto')
 
-    elements.append(Spacer(1, 20))
-
+    # Signature bottom right
     if os.path.exists("signature.png"):
-        elements.append(Image("signature.png", width=2*inch, height=1*inch))
+        c.drawImage("signature.png", width - 240, 100, width=180, height=70, mask='auto')
 
-    doc.build(elements)
+    c.save()
 
     with open(file_name, "rb") as f:
         await update.message.reply_document(f)
