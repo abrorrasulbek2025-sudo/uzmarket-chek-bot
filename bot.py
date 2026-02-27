@@ -27,6 +27,7 @@ if not TOKEN:
 PRODUCT, QTY, PRICE, ADD_MORE = range(4)
 
 BRAND_BLUE = colors.HexColor("#1f4e8c")
+LIGHT_BLUE = colors.HexColor("#2d67b2")
 
 # ======================
 # START
@@ -41,18 +42,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Mahsulot nomini kiriting:")
     return PRODUCT
 
-# ======================
-# PRODUCT
-# ======================
-
 async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["current_product"] = update.message.text
     await update.message.reply_text("Miqdorini kiriting:")
     return QTY
-
-# ======================
-# QTY
-# ======================
 
 async def qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -63,10 +56,6 @@ async def qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Narxini kiriting:")
     return PRICE
-
-# ======================
-# PRICE
-# ======================
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -87,21 +76,15 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Yana mahsulot qo‘shasizmi? (ha/yo‘q)")
     return ADD_MORE
 
-# ======================
-# ADD MORE
-# ======================
-
 async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    answer = update.message.text.lower()
-
-    if answer in ["ha", "yes"]:
+    if update.message.text.lower() in ["ha", "yes"]:
         await update.message.reply_text("Mahsulot nomini kiriting:")
         return PRODUCT
     else:
         return await generate_pdf(update, context)
 
 # ======================
-# PDF GENERATION
+# PDF GENERATION (PREMIUM GRID)
 # ======================
 
 async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -109,13 +92,13 @@ async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c = canvas.Canvas(file_name, pagesize=A4)
     width, height = A4
 
-    y = height - 100
+    y = height - 120
 
     # ===== LOGO =====
     if os.path.exists("logo.png"):
         c.drawImage("logo.png", width/2 - 120, y, width=240, height=100, mask='auto')
 
-    y -= 30
+    y -= 20
 
     # ===== BLUE LINE =====
     c.setStrokeColor(BRAND_BLUE)
@@ -124,61 +107,86 @@ async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     y -= 40
 
-    # ===== CHEK INFO =====
-    c.setFont("Helvetica-Bold", 12)
+    # ===== INFO BLOCK =====
     chek_no = random.randint(1000, 9999)
     today = datetime.datetime.now().strftime("%d.%m.%Y")
 
-    c.drawRightString(width - 60, y + 20, f"Chek № {chek_no}")
-    c.drawRightString(width - 60, y + 5, f"Sana: {today}")
-
-    # ===== SELLER INFO =====
     c.setFont("Helvetica", 12)
+    c.setFillColor(BRAND_BLUE)
+
     c.drawString(60, y + 20, "Sotuvchi: UzMarketOptom")
     c.drawString(60, y + 5, "Manzil: Samarqand sh.")
     c.drawString(60, y - 10, "Tel: +998 XX XXX XX XX")
 
-    y -= 40
+    c.drawRightString(width - 60, y + 20, f"Chek № {chek_no}")
+    c.drawRightString(width - 60, y + 5, f"Sana: {today}")
+
+    y -= 50
 
     # ===== TABLE HEADER =====
-    c.setFillColor(BRAND_BLUE)
-    c.rect(60, y, width - 120, 25, fill=1)
+    table_left = 60
+    table_right = width - 60
+    row_height = 28
+
+    columns = [60, 100, 370, 430, 500, table_right]
+
+    c.setFillColor(LIGHT_BLUE)
+    c.rect(table_left, y, table_right - table_left, row_height, fill=1)
 
     c.setFillColor(colors.white)
     c.setFont("Helvetica-Bold", 11)
-    c.drawString(65, y + 7, "№")
-    c.drawString(100, y + 7, "Mahsulot")
-    c.drawString(360, y + 7, "Miqdor")
-    c.drawString(430, y + 7, "Narx")
-    c.drawString(500, y + 7, "Summa")
 
-    y -= 25
+    c.drawString(columns[0] + 5, y + 8, "№")
+    c.drawString(columns[1] + 5, y + 8, "Mahsulot")
+    c.drawRightString(columns[3] - 5, y + 8, "Miqdor")
+    c.drawRightString(columns[4] - 5, y + 8, "Narx")
+    c.drawRightString(columns[5] - 5, y + 8, "Summa")
+
+    # Vertical lines header
+    c.setStrokeColor(colors.white)
+    for col in columns[1:-1]:
+        c.line(col, y, col, y + row_height)
+
+    y -= row_height
+
+    # ===== ITEMS =====
     c.setFont("Helvetica", 11)
     c.setFillColor(BRAND_BLUE)
+    c.setStrokeColor(BRAND_BLUE)
 
     total_sum = 0
 
     for i, item in enumerate(context.user_data["items"], start=1):
-        y -= 22
-        c.drawString(65, y, str(i))
-        c.drawString(100, y, item["product"])
-        c.drawRightString(390, y, str(item["qty"]))
-        c.drawRightString(460, y, f"{item['price']:,}")
-        c.drawRightString(width - 60, y, f"{item['total']:,}")
+        c.rect(table_left, y, table_right - table_left, row_height, fill=0)
+
+        # Vertical lines
+        for col in columns[1:-1]:
+            c.line(col, y, col, y + row_height)
+
+        c.drawString(columns[0] + 5, y + 8, str(i))
+        c.drawString(columns[1] + 5, y + 8, item["product"])
+        c.drawRightString(columns[3] - 5, y + 8, str(item["qty"]))
+        c.drawRightString(columns[4] - 5, y + 8, f"{item['price']:,}")
+        c.drawRightString(columns[5] - 5, y + 8, f"{item['total']:,}")
+
         total_sum += item["total"]
+        y -= row_height
 
     # ===== TOTAL =====
-    y -= 40
+    y -= 20
     c.setFont("Helvetica-Bold", 18)
-    c.drawRightString(width - 60, y, f"JAMI: {total_sum:,} so'm")
+    c.drawRightString(table_right, y, f"JAMI: {total_sum:,} so'm")
+
+    c.setLineWidth(1.5)
+    c.line(table_right - 200, y - 5, table_right, y - 5)
 
     # ===== STAMP =====
     if os.path.exists("stamp.png"):
-        c.drawImage("stamp.png", 60, 80, width=180, height=180, mask='auto')
+        c.drawImage("stamp.png", 60, 90, width=180, height=180, mask='auto')
 
     # ===== SIGNATURE =====
     if os.path.exists("signature.png"):
-        c.drawImage("signature.png", width - 250, 120, width=180, height=70, mask='auto')
+        c.drawImage("signature.png", width - 250, 130, width=180, height=70, mask='auto')
 
     c.save()
 
