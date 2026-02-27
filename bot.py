@@ -1,5 +1,6 @@
 import os
 import datetime
+import random
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -9,9 +10,18 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    Image,
+)
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import inch
 
 # ======================
 # CONFIG
@@ -23,7 +33,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise RuntimeError("BOT_TOKEN environment variable topilmadi.")
 
-PRODUCT, QTY, PRICE = range(3)
+PRODUCT, QTY, PRICE, ADD_MORE = range(4)
 
 # ======================
 # START
@@ -34,6 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Sizda ruxsat yo‘q.")
         return ConversationHandler.END
 
+    context.user_data["items"] = []
     await update.message.reply_text("Mahsulot nomini kiriting:")
     return PRODUCT
 
@@ -42,7 +53,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ======================
 
 async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["product"] = update.message.text
+    context.user_data["current_product"] = update.message.text
     await update.message.reply_text("Miqdorini kiriting:")
     return QTY
 
@@ -52,108 +63,136 @@ async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        context.user_data["qty"] = int(update.message.text)
-    except ValueError:
-        await update.message.reply_text("Iltimos, son kiriting.")
+        context.user_data["current_qty"] = int(update.message.text)
+    except:
+        await update.message.reply_text("Son kiriting.")
         return QTY
 
     await update.message.reply_text("Narxini kiriting:")
     return PRICE
 
 # ======================
-# PRICE (PREMIUM PDF)
+# PRICE
 # ======================
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        context.user_data["price"] = int(update.message.text)
-    except ValueError:
-        await update.message.reply_text("Iltimos, son kiriting.")
+        price = int(update.message.text)
+    except:
+        await update.message.reply_text("Son kiriting.")
         return PRICE
 
-    product = context.user_data["product"]
-    qty = context.user_data["qty"]
-    price = context.user_data["price"]
-    total = qty * price
+    item = {
+        "product": context.user_data["current_product"],
+        "qty": context.user_data["current_qty"],
+        "price": price,
+        "total": context.user_data["current_qty"] * price
+    }
 
+    context.user_data["items"].append(item)
+
+    await update.message.reply_text("Yana mahsulot qo‘shasizmi? (ha/yo‘q)")
+    return ADD_MORE
+
+# ======================
+# ADD MORE
+# ======================
+
+async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.text.lower() in ["ha", "yes"]:
+        await update.message.reply_text("Mahsulot nomini kiriting:")
+        return PRODUCT
+    else:
+        return await generate_pdf(update, context)
+
+# ======================
+# PDF GENERATION
+# ======================
+
+async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_name = "chek.pdf"
-    c = canvas.Canvas(file_name, pagesize=A4)
+    doc = SimpleDocTemplate(file_name, pagesize=A4)
+    elements = []
+    styles = getSampleStyleSheet()
 
-    width, height = A4
-    y = height - 80
+    blue = colors.HexColor("#1f4e8c")
 
-    # LOGO
+    # Logo
     if os.path.exists("logo.png"):
-        c.drawImage("logo.png", width/2 - 80, y, width=160, height=70, mask='auto')
-    y -= 90
+        elements.append(Image("logo.png", width=2*inch, height=1*inch))
+        elements.append(Spacer(1, 10))
 
-    # TITLE
-    c.setFont("Helvetica-Bold", 20)
-    c.drawCentredString(width/2, y, "UZMARKET OPTOM CHEK")
-    y -= 25
+    # Title
+    title = Paragraph("<b>UZMARKET OPTOM CHEK</b>", styles["Title"])
+    elements.append(title)
+    elements.append(Spacer(1, 20))
 
-    # Divider
-    c.setStrokeColor(colors.grey)
-    c.line(80, y, width - 80, y)
-    y -= 40
+    # Chek info
+    chek_no = random.randint(1000, 9999)
+    today = datetime.datetime.now().strftime("%d.%m.%Y")
 
-    # Body
-    c.setFont("Helvetica", 13)
+    info_data = [
+        ["Sotuvchi:", "UzMarketOptom"],
+        ["Manzil:", "Samarqand sh."],
+        ["Tel:", "+998 XX XXX XX XX"],
+        ["Chek №:", str(chek_no)],
+        ["Sana:", today],
+    ]
 
-    c.drawString(100, y, "Mahsulot:")
-    c.drawRightString(width - 100, y, product)
-    y -= 30
+    info_table = Table(info_data, colWidths=[120, 350])
+    info_table.setStyle(TableStyle([
+        ("TEXTCOLOR", (0,0), (-1,-1), blue),
+        ("FONTSIZE", (0,0), (-1,-1), 11),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+    ]))
 
-    c.drawString(100, y, "Miqdor:")
-    c.drawRightString(width - 100, y, str(qty))
-    y -= 30
+    elements.append(info_table)
+    elements.append(Spacer(1, 20))
 
-    c.drawString(100, y, "Narx (dona):")
-    c.drawRightString(width - 100, y, f"{price:,} so'm")
-    y -= 30
+    # Items table
+    data = [["№", "Mahsulot", "Miqdor", "Narx", "Summa"]]
+    total_sum = 0
 
-    # Divider
-    c.setStrokeColor(colors.black)
-    c.line(100, y, width - 100, y)
-    y -= 35
+    for i, item in enumerate(context.user_data["items"], start=1):
+        data.append([
+            str(i),
+            item["product"],
+            str(item["qty"]),
+            f"{item['price']:,}",
+            f"{item['total']:,}"
+        ])
+        total_sum += item["total"]
 
-    # JAMI
-    c.setFont("Helvetica-Bold", 16)
-    c.setFillColor(colors.darkred)
-    c.drawString(100, y, "JAMI:")
-    c.drawRightString(width - 100, y, f"{total:,} so'm")
-    c.setFillColor(colors.black)
-    y -= 50
+    items_table = Table(data, colWidths=[40, 200, 60, 80, 90])
+    items_table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), blue),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+        ("GRID", (0,0), (-1,-1), 1, blue),
+        ("FONTSIZE", (0,0), (-1,-1), 10),
+        ("ALIGN", (2,1), (-1,-1), "CENTER"),
+    ]))
 
-    # Date
-    c.setFont("Helvetica", 11)
-    c.drawRightString(width - 80, y,
-        datetime.datetime.now().strftime("%d.%m.%Y %H:%M"))
-    y -= 40
+    elements.append(items_table)
+    elements.append(Spacer(1, 20))
 
-    # Watermark stamp (semi transparent)
+    # Jami
+    jami_paragraph = Paragraph(
+        f"<b>JAMI: {total_sum:,} so'm</b>",
+        styles["Heading2"]
+    )
+    elements.append(jami_paragraph)
+    elements.append(Spacer(1, 40))
+
+    # Stamp + signature
     if os.path.exists("stamp.png"):
-        c.saveState()
-        c.setFillAlpha(0.15)
-        c.drawImage(
-            "stamp.png",
-            width/2 - 120,
-            height/2 - 120,
-            width=240,
-            height=240,
-            mask='auto'
-        )
-        c.restoreState()
+        elements.append(Image("stamp.png", width=2*inch, height=2*inch))
 
-    # Signature
+    elements.append(Spacer(1, 20))
+
     if os.path.exists("signature.png"):
-        c.drawImage("signature.png", 100, 150, width=140, height=60, mask='auto')
+        elements.append(Image("signature.png", width=2*inch, height=1*inch))
 
-    # Footer
-    c.setFont("Helvetica-Oblique", 12)
-    c.drawCentredString(width/2, 100, "Rahmat xaridingiz uchun!")
-
-    c.save()
+    doc.build(elements)
 
     with open(file_name, "rb") as f:
         await update.message.reply_document(f)
@@ -181,6 +220,7 @@ def main():
             PRODUCT: [MessageHandler(filters.TEXT & ~filters.COMMAND, product)],
             QTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, qty)],
             PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, price)],
+            ADD_MORE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_more)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
