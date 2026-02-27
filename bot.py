@@ -1,4 +1,3 @@
-print("TOKEN:", os.getenv("BOT_TOKEN"))
 import os
 import datetime
 from telegram import Update
@@ -22,8 +21,8 @@ from reportlab.lib.units import inch
 ADMIN_ID = 6056893338
 TOKEN = os.getenv("BOT_TOKEN")
 
-if not TOKEN:
-    raise ValueError("BOT_TOKEN topilmadi! Railway Variables ga qo‘shing.")
+if TOKEN is None:
+    raise RuntimeError("BOT_TOKEN environment variable topilmadi.")
 
 PRODUCT, QTY, PRICE = range(3)
 
@@ -67,7 +66,6 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_name = "chek.pdf"
     doc = SimpleDocTemplate(file_name)
     elements = []
-
     styles = getSampleStyleSheet()
 
     elements.append(Paragraph("UZMARKETOPTOM CHEK", styles["Title"]))
@@ -89,7 +87,9 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elements.append(table)
     doc.build(elements)
 
-    await update.message.reply_document(open(file_name, "rb"))
+    with open(file_name, "rb") as f:
+        await update.message.reply_document(f)
+
     return ConversationHandler.END
 
 # ======================
