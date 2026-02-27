@@ -26,6 +26,9 @@ if not TOKEN:
 
 PRODUCT, QTY, PRICE, ADD_MORE = range(4)
 
+BRAND_BLUE = colors.HexColor("#1f4e8c")
+LIGHT_BLUE = colors.HexColor("#2d67b2")
+
 # ======================
 # START
 # ======================
@@ -105,87 +108,78 @@ async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c = canvas.Canvas(file_name, pagesize=A4)
 
     width, height = A4
-    blue = colors.HexColor("#1f4e8c")
 
-    y = height - 60
+    # ===== HEADER BLOCK =====
+    c.setFillColor(BRAND_BLUE)
+    c.rect(0, height - 120, width, 120, fill=1)
 
-    # LOGO
-    if os.path.exists("logo.png"):
-        c.drawImage("logo.png", width/2 - 100, y - 60, width=200, height=60, mask='auto')
-    y -= 80
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 26)
+    c.drawCentredString(width / 2, height - 70, "UZMARKET OPTOM CHEK")
 
-    # Title
-    c.setFont("Helvetica-Bold", 22)
-    c.setFillColor(blue)
-    c.drawCentredString(width/2, y, "UZMARKET OPTOM CHEK")
-    y -= 20
-
-    c.setStrokeColor(blue)
-    c.line(60, y, width - 60, y)
-    y -= 30
-
-    # Chek info
-    c.setFont("Helvetica", 11)
-    c.setFillColor(blue)
-
+    # ===== CHEK INFO BLOCK =====
+    c.setFont("Helvetica-Bold", 12)
     chek_no = random.randint(1000, 9999)
     today = datetime.datetime.now().strftime("%d.%m.%Y")
 
+    c.drawRightString(width - 60, height - 100, f"Chek № {chek_no}")
+    c.drawRightString(width - 60, height - 115, f"Sana: {today}")
+
+    # ===== SELLER INFO =====
+    y = height - 150
+    c.setFillColor(BRAND_BLUE)
+    c.setFont("Helvetica", 12)
     c.drawString(60, y, "Sotuvchi: UzMarketOptom")
-    c.drawRightString(width - 60, y, f"Chek № {chek_no}")
     y -= 18
-
     c.drawString(60, y, "Manzil: Samarqand sh.")
-    c.drawRightString(width - 60, y, f"Sana: {today}")
     y -= 18
-
     c.drawString(60, y, "Tel: +998 XX XXX XX XX")
-    y -= 25
+    y -= 30
 
-    c.line(60, y, width - 60, y)
-    y -= 25
+    # ===== TABLE HEADER =====
+    c.setFillColor(LIGHT_BLUE)
+    c.rect(60, y, width - 120, 25, fill=1)
 
-    # Table Header
+    c.setFillColor(colors.white)
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(60, y, "№")
-    c.drawString(100, y, "Mahsulot")
-    c.drawString(350, y, "Miqdor")
-    c.drawString(420, y, "Narx")
-    c.drawString(480, y, "Summa")
-    y -= 15
+    c.drawString(65, y + 7, "№")
+    c.drawString(100, y + 7, "Mahsulot")
+    c.drawString(360, y + 7, "Miqdor")
+    c.drawString(430, y + 7, "Narx")
+    c.drawString(490, y + 7, "Summa")
 
-    c.line(60, y, width - 60, y)
-    y -= 20
+    y -= 25
 
-    # Items
+    # ===== ITEMS =====
     c.setFont("Helvetica", 11)
+    c.setFillColor(BRAND_BLUE)
+
     total_sum = 0
 
     for i, item in enumerate(context.user_data["items"], start=1):
-        c.drawString(60, y, str(i))
+        y -= 22
+        c.drawString(65, y, str(i))
         c.drawString(100, y, item["product"])
-        c.drawRightString(390, y, str(item["qty"]))
-        c.drawRightString(460, y, f"{item['price']:,}")
+        c.drawRightString(400, y, str(item["qty"]))
+        c.drawRightString(470, y, f"{item['price']:,}")
         c.drawRightString(width - 60, y, f"{item['total']:,}")
         total_sum += item["total"]
-        y -= 18
 
-    y -= 10
-    c.line(300, y, width - 60, y)
-    y -= 25
+    # ===== TOTAL =====
+    y -= 40
+    c.setStrokeColor(BRAND_BLUE)
+    c.line(width - 250, y + 20, width - 60, y + 20)
 
-    # JAMI
-    c.setFont("Helvetica-Bold", 16)
-    c.setFillColor(blue)
+    c.setFont("Helvetica-Bold", 18)
     c.drawRightString(width - 60, y, f"JAMI: {total_sum:,} so'm")
 
-    # Stamp bottom left
+    # ===== STAMP =====
     if os.path.exists("stamp.png"):
         c.drawImage("stamp.png", 60, 80, width=180, height=180, mask='auto')
 
-    # Signature bottom right
+    # ===== SIGNATURE =====
     if os.path.exists("signature.png"):
-        c.drawImage("signature.png", width - 240, 100, width=180, height=70, mask='auto')
+        c.drawImage("signature.png", width - 250, 110, width=180, height=70, mask='auto')
 
     c.save()
 
