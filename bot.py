@@ -27,7 +27,7 @@ if not TOKEN:
 PRODUCT, QTY, PRICE, ADD_MORE = range(4)
 
 BRAND_BLUE = colors.HexColor("#1f4e8c")
-LIGHT_BLUE = colors.HexColor("#2d67b2")
+HEADER_BLUE = colors.HexColor("#2d67b2")
 
 # ======================
 # START
@@ -84,7 +84,7 @@ async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await generate_pdf(update, context)
 
 # ======================
-# PDF GENERATION (PREMIUM GRID)
+# PDF GENERATION
 # ======================
 
 async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -121,31 +121,36 @@ async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c.drawRightString(width - 60, y + 20, f"Chek № {chek_no}")
     c.drawRightString(width - 60, y + 5, f"Sana: {today}")
 
-    y -= 50
+    y -= 60
 
-    # ===== TABLE HEADER =====
+    # ===== TABLE SETTINGS =====
     table_left = 60
     table_right = width - 60
-    row_height = 28
+    row_height = 30
 
-    columns = [60, 100, 370, 430, 500, table_right]
+    col_no = table_left
+    col_product = table_left + 40
+    col_qty = table_left + 330
+    col_price = table_left + 420
+    col_total = table_right
 
-    c.setFillColor(LIGHT_BLUE)
+    # ===== HEADER =====
+    c.setFillColor(HEADER_BLUE)
     c.rect(table_left, y, table_right - table_left, row_height, fill=1)
 
-    c.setFillColor(colors.white)
     c.setFont("Helvetica-Bold", 11)
+    c.setFillColor(colors.white)
 
-    c.drawString(columns[0] + 5, y + 8, "№")
-    c.drawString(columns[1] + 5, y + 8, "Mahsulot")
-    c.drawRightString(columns[3] - 5, y + 8, "Miqdor")
-    c.drawRightString(columns[4] - 5, y + 8, "Narx")
-    c.drawRightString(columns[5] - 5, y + 8, "Summa")
+    c.drawString(col_no + 10, y + 9, "№")
+    c.drawString(col_product + 5, y + 9, "Mahsulot")
+    c.drawRightString(col_qty - 10, y + 9, "Miqdor")
+    c.drawRightString(col_price - 10, y + 9, "Narx")
+    c.drawRightString(col_total - 10, y + 9, "Summa")
 
-    # Vertical lines header
+    # Header vertical lines
     c.setStrokeColor(colors.white)
-    for col in columns[1:-1]:
-        c.line(col, y, col, y + row_height)
+    for x in [col_product, col_qty, col_price]:
+        c.line(x, y, x, y + row_height)
 
     y -= row_height
 
@@ -159,26 +164,26 @@ async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, item in enumerate(context.user_data["items"], start=1):
         c.rect(table_left, y, table_right - table_left, row_height, fill=0)
 
-        # Vertical lines
-        for col in columns[1:-1]:
-            c.line(col, y, col, y + row_height)
+        # vertical grid
+        for x in [col_product, col_qty, col_price]:
+            c.line(x, y, x, y + row_height)
 
-        c.drawString(columns[0] + 5, y + 8, str(i))
-        c.drawString(columns[1] + 5, y + 8, item["product"])
-        c.drawRightString(columns[3] - 5, y + 8, str(item["qty"]))
-        c.drawRightString(columns[4] - 5, y + 8, f"{item['price']:,}")
-        c.drawRightString(columns[5] - 5, y + 8, f"{item['total']:,}")
+        c.drawString(col_no + 10, y + 9, str(i))
+        c.drawString(col_product + 5, y + 9, item["product"])
+        c.drawRightString(col_qty - 10, y + 9, str(item["qty"]))
+        c.drawRightString(col_price - 10, y + 9, f"{item['price']:,}")
+        c.drawRightString(col_total - 10, y + 9, f"{item['total']:,}")
 
         total_sum += item["total"]
         y -= row_height
 
     # ===== TOTAL =====
-    y -= 20
+    y -= 30
     c.setFont("Helvetica-Bold", 18)
     c.drawRightString(table_right, y, f"JAMI: {total_sum:,} so'm")
 
     c.setLineWidth(1.5)
-    c.line(table_right - 200, y - 5, table_right, y - 5)
+    c.line(table_right - 220, y - 5, table_right, y - 5)
 
     # ===== STAMP =====
     if os.path.exists("stamp.png"):
