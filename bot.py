@@ -1,3 +1,4 @@
+print("TOKEN:", os.getenv("BOT_TOKEN"))
 import os
 import datetime
 from telegram import Update
