@@ -27,7 +27,6 @@ if not TOKEN:
 PRODUCT, QTY, PRICE, ADD_MORE = range(4)
 
 BRAND_BLUE = colors.HexColor("#1f4e8c")
-LIGHT_BLUE = colors.HexColor("#2d67b2")
 
 # ======================
 # START
@@ -59,7 +58,7 @@ async def qty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         context.user_data["current_qty"] = int(update.message.text)
     except:
-        await update.message.reply_text("Son kiriting.")
+        await update.message.reply_text("Iltimos son kiriting.")
         return QTY
 
     await update.message.reply_text("Narxini kiriting:")
@@ -73,7 +72,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         price = int(update.message.text)
     except:
-        await update.message.reply_text("Son kiriting.")
+        await update.message.reply_text("Iltimos son kiriting.")
         return PRICE
 
     item = {
@@ -93,7 +92,9 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ======================
 
 async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text.lower() in ["ha", "yes"]:
+    answer = update.message.text.lower()
+
+    if answer in ["ha", "yes"]:
         await update.message.reply_text("Mahsulot nomini kiriting:")
         return PRODUCT
     else:
@@ -106,51 +107,52 @@ async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_name = "chek.pdf"
     c = canvas.Canvas(file_name, pagesize=A4)
-
     width, height = A4
 
-    # ===== HEADER BLOCK =====
-    c.setFillColor(BRAND_BLUE)
-    c.rect(0, height - 120, width, 120, fill=1)
+    y = height - 100
 
-    c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 26)
-    c.drawCentredString(width / 2, height - 70, "UZMARKET OPTOM CHEK")
+    # ===== LOGO =====
+    if os.path.exists("logo.png"):
+        c.drawImage("logo.png", width/2 - 120, y, width=240, height=100, mask='auto')
 
-    # ===== CHEK INFO BLOCK =====
+    y -= 30
+
+    # ===== BLUE LINE =====
+    c.setStrokeColor(BRAND_BLUE)
+    c.setLineWidth(2)
+    c.line(60, y, width - 60, y)
+
+    y -= 40
+
+    # ===== CHEK INFO =====
     c.setFont("Helvetica-Bold", 12)
     chek_no = random.randint(1000, 9999)
     today = datetime.datetime.now().strftime("%d.%m.%Y")
 
-    c.drawRightString(width - 60, height - 100, f"Chek № {chek_no}")
-    c.drawRightString(width - 60, height - 115, f"Sana: {today}")
+    c.drawRightString(width - 60, y + 20, f"Chek № {chek_no}")
+    c.drawRightString(width - 60, y + 5, f"Sana: {today}")
 
     # ===== SELLER INFO =====
-    y = height - 150
-    c.setFillColor(BRAND_BLUE)
     c.setFont("Helvetica", 12)
-    c.drawString(60, y, "Sotuvchi: UzMarketOptom")
-    y -= 18
-    c.drawString(60, y, "Manzil: Samarqand sh.")
-    y -= 18
-    c.drawString(60, y, "Tel: +998 XX XXX XX XX")
-    y -= 30
+    c.drawString(60, y + 20, "Sotuvchi: UzMarketOptom")
+    c.drawString(60, y + 5, "Manzil: Samarqand sh.")
+    c.drawString(60, y - 10, "Tel: +998 XX XXX XX XX")
+
+    y -= 40
 
     # ===== TABLE HEADER =====
-    c.setFillColor(LIGHT_BLUE)
+    c.setFillColor(BRAND_BLUE)
     c.rect(60, y, width - 120, 25, fill=1)
 
     c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 12)
+    c.setFont("Helvetica-Bold", 11)
     c.drawString(65, y + 7, "№")
     c.drawString(100, y + 7, "Mahsulot")
     c.drawString(360, y + 7, "Miqdor")
     c.drawString(430, y + 7, "Narx")
-    c.drawString(490, y + 7, "Summa")
+    c.drawString(500, y + 7, "Summa")
 
     y -= 25
-
-    # ===== ITEMS =====
     c.setFont("Helvetica", 11)
     c.setFillColor(BRAND_BLUE)
 
@@ -160,16 +162,13 @@ async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
         y -= 22
         c.drawString(65, y, str(i))
         c.drawString(100, y, item["product"])
-        c.drawRightString(400, y, str(item["qty"]))
-        c.drawRightString(470, y, f"{item['price']:,}")
+        c.drawRightString(390, y, str(item["qty"]))
+        c.drawRightString(460, y, f"{item['price']:,}")
         c.drawRightString(width - 60, y, f"{item['total']:,}")
         total_sum += item["total"]
 
     # ===== TOTAL =====
     y -= 40
-    c.setStrokeColor(BRAND_BLUE)
-    c.line(width - 250, y + 20, width - 60, y + 20)
-
     c.setFont("Helvetica-Bold", 18)
     c.drawRightString(width - 60, y, f"JAMI: {total_sum:,} so'm")
 
@@ -179,7 +178,7 @@ async def generate_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ===== SIGNATURE =====
     if os.path.exists("signature.png"):
-        c.drawImage("signature.png", width - 250, 110, width=180, height=70, mask='auto')
+        c.drawImage("signature.png", width - 250, 120, width=180, height=70, mask='auto')
 
     c.save()
 
